@@ -1,0 +1,270 @@
+# Phase 0 — C# 기초 문법 + 사고방식 전환
+## Phase 0의 최종 목표 (다시 명확히)
+
+Phase 0 학습 후 최종 목표
+* C# 코드가 “이상하게” 보이지 않는다
+* C++ 스타일로 C#을 쓰면 왜 문제가 되는지 설명할 수 있다
+* C#에서 **무엇을 신경 써야 하고, 무엇을 신경 안 써도 되는지** 구분한다
+* 이후 Phase(설계, async, Web API)를 **막힘 없이 받아들일 준비 상태**가 된다
+
+# 1. C# 프로그램의 본질
+## 1.1 관리되는 언어(Managed Language)란?
+### C++
+* 메모리 = 실체
+* 객체 수명 = 코드 구조
+* 해제 시점 = 개발자 책임
+
+### C#
+* 메모리 = 런타임(GC) 관리
+* 객체 수명 = **참조 그래프**
+* 해제 시점 = **비결정적**
+
+```csharp
+var obj = new Foo();
+```
+* 메모리 할당 O
+* 해제 시점 ❌ (모른다, '신경 쓸 필요도 없다')
+
+---
+
+## 1.2 스코프 ≠ 수명
+### C++ 
+```cpp
+{
+  Foo f;
+} // 여기서 소멸
+```
+
+### C#
+```csharp
+{
+    var f = new Foo();
+} // 여기서 "사용 종료"일 뿐
+```
+
+* 객체는 여전히 살아있을 수 있음
+* 다른 참조가 있으면 유지됨
+
+---
+
+# 2. C# 기본 문법 (Phase 0 필수)
+## 2.1 Top-level statements
+```csharp
+Console.WriteLine("Hello");
+```
+
+* `Main()`이 안 보이는 이유:
+  * 컴파일러가 자동 생성
+* 엔트리포인트보다 **구성(configuration)** 이 중요
+
+---
+
+## 2.2 변수 선언과 타입 추론
+```csharp
+var x = 10;
+```
+
+* `var`는 **정적 타입**
+* C++ `auto`와 유사하지만:
+  * 스타일 가독성 용도
+  * 남발 ❌
+
+```csharp
+int x = 10;      // OK
+var user = new User(); // 더 좋음
+```
+
+---
+
+## 2.3 class 기본 구조
+```csharp
+class User
+{
+    public string Name { get; }
+    public int Age { get; private set; }
+
+    public User(string name)
+    {
+        Name = name;
+        Age = 0;
+    }
+
+    public void Grow()
+    {
+        Age++;
+    }
+}
+```
+
+### 중요한 차이점
+* 헤더/소스 분리 ❌
+* 소멸자 개념 ❌ (finalizer는 특수 상황)
+* 접근 제어는 동일
+
+---
+
+## 2.4 struct vs class (가장 중요)
+### struct (값 타입)
+```csharp
+struct Point
+{
+    public int X;
+}
+```
+
+* 복사
+* 불변 설계 권장
+* 상속 ❌
+
+### class (참조 타입)
+```csharp
+class Point
+{
+    public int X;
+}
+```
+
+* 참조 공유
+* 객체/엔티티 표현
+
+### 절대 규칙
+> **“작고, 값 의미, 불변”이 아니면 struct 쓰지 말것**
+
+---
+
+## 2.5 참조 전달 문법
+```csharp
+void Inc(ref int x) { x++; }
+void Read(in int x) { }
+void Set(out int x) { x = 1; }
+```
+
+* 기본은 값 전달
+* `ref`는 **명시적 의도**
+
+---
+
+# 3. null과 nullable (C# 사고의 핵심)
+## 3.1 nullable reference
+
+```csharp
+string? name = null;
+Console.WriteLine(name.Length); // 경고
+```
+
+* null 가능성 = 타입 정보
+* 런타임 예외보다 **컴파일 경고 선호**
+
+```csharp
+Console.WriteLine(name?.Length);
+Console.WriteLine(name ?? "unknown");
+```
+
+📌 **C++의 nullptr과 다르게 C#은 언어 차원에서 관리**
+
+---
+
+# 4. 프로퍼티 (C#의 기본 캡슐화 도구)
+### ❌ 잘못된 방식
+
+```csharp
+public int Age;
+```
+
+### ✅ 올바른 방식
+```csharp
+public int Age { get; private set; }
+```
+
+* 외부 변경 통제
+* 내부 로직으로 상태 변화
+
+---
+
+# 5. 불변 데이터: record
+```csharp
+public record User(string Name, int Age);
+```
+
+* 값 기반 비교
+* 불변
+* DTO / 메시지 최적
+
+---
+
+# 6. 예외 처리 문법과 철학
+```csharp
+try
+{
+    Do();
+}
+catch (InvalidOperationException ex)
+{
+    Log(ex);
+}
+finally
+{
+    Cleanup();
+}
+```
+
+### 핵심 철학
+* 예외 = 비정상 상황
+* 흐름 제어 ❌
+
+---
+
+# 7. IDisposable / using (GC와 분리해서 이해)
+## 7.1 GC가 하는 것
+* 메모리 해제
+
+## 7.2 GC가 안 하는 것
+* 파일 닫기
+* 소켓 해제
+* 락 해제
+
+```csharp
+using var fs = new FileStream("a.txt", FileMode.Open);
+```
+
+* `Dispose()` 호출 보장
+* RAII와 유사해 보이지만 **개념 다름**
+
+---
+
+# 8. 네임스페이스와 using
+```csharp
+using System;
+using System.Collections.Generic;
+```
+
+* 헤더 개념 ❌
+* 단순 이름 충돌 방지
+
+---
+
+# 9. Phase 0에서 절대 하지 말아야 할 것들
+❌ async/await 깊게 파기
+❌ LINQ 성능 최적화
+❌ unsafe
+❌ struct 남발
+❌ 프레임워크 아키텍처 설계
+
+---
+
+# 10. Phase 0 완료 자가 진단 (필수)
+아래 질문에 **막힘 없이 설명 가능**해야 한다.
+
+* 왜 C#에는 소멸자가 기본 개념이 아닌가?
+* struct를 쓰면 안 되는 경우는?
+* GC가 있는데 왜 IDisposable가 필요한가?
+* nullable 경고를 무시하면 어떤 문제가 생기는가?
+* C++ 스타일 코드를 C#에 그대로 쓰면 왜 문제가 되는가?
+
+---
+
+# 11. Phase 0의 핵심 요약 (암기용)
+* C#은 관리되는 언어다
+* 수명 관리는 런타임 책임이다
+* interface/불변/명시적 의도가 중요하다
+* “성능 먼저”는 Phase 0의 적이다
